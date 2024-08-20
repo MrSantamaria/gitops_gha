@@ -1,0 +1,17 @@
+name: Custom Config Workflow
+
+on:
+  schedule:
+    - cron: '0 2 * * *' # Runs daily at 2 AM
+  workflow_dispatch: # Allows manual runs of this workflow
+
+jobs:
+  update-repos-with-custom-config:
+    uses: your-repo/.github/workflows/reusable-update-repos.yml@main
+    with:
+      org_names: 'custom-org1,custom-org2'
+      regex_pattern: 'custom-pattern'
+      file_path: 'custom/path/to/file.txt'
+      branch_name: 'custom-branch'
+      pagination_limit: '50'
+      github_runner: 'ubuntu-latest'

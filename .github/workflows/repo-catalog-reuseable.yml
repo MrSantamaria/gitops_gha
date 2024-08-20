@@ -1,0 +1,76 @@
+name: Reusable Update Repository List
+
+on:
+  workflow_call:
+    inputs:
+      org_names:
+        description: 'Comma-separated list of organization names'
+        type: string
+        required: true
+        default: 'org1,org2'
+      regex_pattern:
+        description: 'Regex pattern to match repository names'
+        type: string
+        required: true
+        default: 'your-default-pattern'
+      file_path:
+        description: 'Path to the file to be updated'
+        type: string
+        required: true
+        default: 'path/to/your/file.txt'
+      branch_name:
+        description: 'Branch to push the changes to'
+        type: string
+        required: true
+        default: 'main'
+      pagination_limit: # Added in case of too many repos for load purposes.
+        description: 'Number of repositories to fetch per page'
+        type: string
+        required: false
+        default: '100'
+      github_runner:
+        description: 'Name of runner to use'
+        type: string
+        required: false
+        default: 'ubuntu-latest'
+
+jobs:
+  update-repos:
+    runs-on: ${{ inputs.github_runner }}
+
+    steps:
+    - name: Checkout the repository
+      uses: actions/checkout@v3
+
+    - name: Set environment variables
+      run: |
+        echo "ORG_NAMES=${{ inputs.org_names }}" >> $GITHUB_ENV
+        echo "REGEX_PATTERN=${{ inputs.regex_pattern }}" >> $GITHUB_ENV
+        echo "FILE_PATH=${{ inputs.file_path }}" >> $GITHUB_ENV
+        echo "BRANCH_NAME=${{ inputs.branch_name }}" >> $GITHUB_ENV
+        echo "PAGINATION_LIMIT=${{ inputs.pagination_limit }}" >> $GITHUB_ENV
+
+    - name: Get list of repositories
+      id: get_repos
+      run: |
+        for ORG in $(echo $ORG_NAMES | sed "s/,/ /g"); do
+          REPOS=$(gh api orgs/$ORG/repos --paginate --per-page $PAGINATION_LIMIT --jq ".[] | select(.name | test(\"$REGEX_PATTERN\")) | .name")
+          echo "$REPOS" >> repo_list.txt
+        done
+
+    - name: Update file with repository list
+      run: |
+        cat repo_list.txt > $FILE_PATH
+
+    - name: Generate timestamp for commit message
+      id: timestamp
+      run: echo "TIMESTAMP=$(date -u '+%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_ENV
+
+    - name: Commit changes with timestamp
+      run: |
+        git config --global user.name "github-actions[bot]"
+        git config --global user.email "github-actions[bot]@users.noreply.github.com"
+        git add $FILE_PATH
+        COMMIT_MESSAGE="Update repository list on $TIMESTAMP"
+        git commit -m "$COMMIT_MESSAGE"
+        git push origin $BRANCH_NAME
